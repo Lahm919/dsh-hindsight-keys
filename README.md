@@ -225,6 +225,7 @@ npm test          # = node test/host-logic.test.mjs
 - **修复竞态**：`restartDaemon` 开始时先同步写入 `lastRestart.status = 'running'`，面板首次轮询不会再读到 `restarting:false` 而提前放弃。
 - **探测覆盖未启用的 key**：`probeAll` 不再过滤 `enabled`，未启用项标注 `disabled`，方便先探测再决定要不要启用。
 - 面板提示更准确：env 无变化但要求重启时，提示「env 无变化，正在重启 daemon」。
+- **不再假装重启成功**：`stop` 之后端口仍未关闭时直接报错（它可能不是由 `uvx … daemon` 启动的），而不是对着旧进程误报成功。
 - `BUILD_MARKER` 更新为 `build-2026-11-19T09-00Z`。
 - 测试改为合成 fixture（不再依赖作者机器的 env 路径与本地桥），13/13 通过。
 - 许可证改为 Apache-2.0。
