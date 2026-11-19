@@ -741,6 +741,23 @@ function restartDaemon(st) {
     const downAfterStop = await waitUnhealthy(12, 1000)
     st.lastRestart.steps.push({ step: 'down', ok: downAfterStop, ms: 0 })
     saveState(st)
+    // If the port never closed, the daemon was not stopped: starting another one
+    // would "succeed" instantly against the old process and report a restart that
+    // never happened. Fail loudly instead.
+    if (!downAfterStop) {
+      st.lastRestart = {
+        at: startedAt,
+        finishedAt: nowIso(),
+        status: 'failed',
+        steps: st.lastRestart.steps,
+        healthy: true,
+        stoppedFirst: false,
+        error: 'daemon 在 stop 之后仍然可访问，未执行 start（它可能不是由 uvx … daemon 启动的）',
+      }
+      saveState(st)
+      log('restart aborted: daemon still reachable after stop')
+      return
+    }
     const start = await startDaemonAndWait(uvx, base, START_TIMEOUT_MS)
     st.lastRestart.steps.push({
       step: 'start',
