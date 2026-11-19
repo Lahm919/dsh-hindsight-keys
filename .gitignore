@@ -1,0 +1,5 @@
+﻿node_modules/
+*.bak-*
+plugin-config.json
+.DS_Store
+Thumbs.db

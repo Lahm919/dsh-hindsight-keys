@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hindsight API Key 池</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --panel-2: #f0f2f5;
+    --border: #e3e6ea;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --ok-bg: #e8f5ec;
+    --warn: #b45309;
+    --warn-bg: #fdf3e3;
+    --bad: #b91c1c;
+    --bad-bg: #fdecec;
+    --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --panel: #1d2026;
+      --panel-2: #23262d;
+      --border: #2f343c;
+      --text: #e6e8eb;
+      --muted: #9aa3af;
+      --accent: #6ea8fe;
+      --ok: #7bd88f;
+      --ok-bg: #16301f;
+      --warn: #eebf6d;
+      --warn-bg: #33260f;
+      --bad: #ff8a80;
+      --bad-bg: #3a1a1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 18px 20px 40px;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.55 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  h1 { font-size: 16px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .sub code { font-family: var(--mono); font-size: 11px; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  section > h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1 1 auto; }
+  button {
+    font: inherit;
+    padding: 5px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.06); color: #fff; }
+  button.danger { color: var(--bad); }
+  button.mini { padding: 2px 8px; font-size: 12px; }
+  input[type=text], input[type=password], input[type=number], select {
+    font: inherit;
+    padding: 5px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--panel-2); color: var(--muted);
+  }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  .mono { font-family: var(--mono); font-size: 11.5px; }
+  .muted { color: var(--muted); }
+  .k { font-weight: 600; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--panel-2); color: var(--muted); }
+  .tag.primary { background: var(--ok-bg); color: var(--ok); }
+  .tag.off { text-decoration: line-through; opacity: .7; }
+  pre {
+    margin: 0; padding: 10px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto;
+  }
+  .hint { color: var(--muted); font-size: 11.5px; }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .toast {
+    position: fixed; right: 18px; bottom: 18px; max-width: 420px;
+    padding: 9px 13px; border-radius: 9px; font-size: 12.5px;
+    background: var(--panel); border: 1px solid var(--border);
+    box-shadow: 0 6px 20px rgba(0,0,0,.12); opacity: 0; transform: translateY(6px);
+    transition: opacity .18s, transform .18s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.ok { border-color: var(--ok); color: var(--ok); }
+  .toast.bad { border-color: var(--bad); color: var(--bad); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+  .sep { height: 1px; background: var(--border); margin: 10px 0; }
+</style>
+</head>
+<body>
+<h1>Hindsight API Key 池</h1>
+<div class="sub">
+  轮转本地 Hindsight daemon 的 LLM key。所有 key 经 <code id="baseUrl">…</code> 调用 <code id="model">deepseek-v4.1-flash</code>。
+  密文永不出站：页面只显示打码值与指纹。
+</div>
+
+<section>
+  <div class="row">
+    <span class="pill" id="pillDaemon"><span class="dot"></span>daemon</span>
+    <span class="pill" id="pillBridge"><span class="dot"></span>bridge</span>
+    <span class="pill" id="pillMode">轮换模式</span>
+    <span class="grow"></span>
+    <span class="hint" id="lastApply"></span>
+    <button class="mini" id="btnRefresh">刷新</button>
+  </div>
+</section>
+
+<section>
+  <h2>Key 池 <span class="hint" id="poolCount"></span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:34px">启用</th>
+        <th style="width:52px">主</th>
+        <th>账号</th>
+        <th>Key</th>
+        <th>流量（日志）</th>
+        <th>探测</th>
+        <th style="width:1%"></th>
+      </tr>
+    </thead>
+    <tbody id="keyRows"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+  </table>
+  <div class="sep"></div>
+  <div class="row">
+    <span class="hint">从凭据库添加：</span>
+    <select id="refPick" style="min-width:220px"><option value="">（没有可用的凭据 ref）</option></select>
+    <button id="btnAddRef" class="mini">加入池</button>
+    <span class="grow"></span>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="newLabel" type="text" placeholder="账号名，如 账号 5" style="width:150px" />
+    <input id="newKey" type="password" placeholder="粘贴 oc_sk_… 新 key" style="flex:1 1 260px" autocomplete="off" />
+    <button id="btnAddKey" class="mini">添加</button>
+  </div>
+  <div class="hint" style="margin-top:6px">换入新 key 后点「保存并重启 daemon」才会生效；主 key 总是对应 <code>HINDSIGHT_API_LLM_API_KEY</code>，其余按顺序编号为 <code>_1</code>…</div>
+</section>
+
+<section>
+  <h2>轮换策略</h2>
+  <div class="grid2">
+    <label class="field">模式
+      <select id="mode">
+        <option value="round-robin">round-robin 轮流</option>
+        <option value="failover">failover 优先主 key</option>
+      </select>
+    </label>
+    <label class="field">失败冷却（秒）
+      <input id="cooldown" type="number" min="0" max="86400" step="1" />
+    </label>
+    <label class="field">权重（可选，逗号分隔）
+      <input id="weights" type="text" placeholder="如 2,1,1 —— 数量须等于启用 key 数" />
+    </label>
+  </div>
+  <div class="hint" style="margin-top:8px">round-robin：每次请求轮换起点，失败自动顺延下一个成员；failover：只用主 key，失败才降级。冷却期内失败的账号被排到最后，仍会周期重试。</div>
+</section>
+
+<section>
+  <h2>生效</h2>
+  <div class="row">
+    <button class="primary" id="btnApplyRestart">保存并重启 daemon</button>
+    <button id="btnApply">仅保存（写入 env）</button>
+    <button id="btnProbeAll">探测全部 key</button>
+    <button id="btnRestart">重启 daemon</button>
+    <span class="grow"></span>
+    <span class="hint" id="statusLine"></span>
+  </div>
+  <div class="hint" style="margin-top:8px" id="restartInfo"></div>
+  <div class="sep"></div>
+  <h2 style="margin-bottom:8px">写入 <code id="envName">coding-agent.env</code> 的受管块</h2>
+  <pre id="envPreview"></pre>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var state = null;
+  var dirty = false;
+  var busy = false;
+  var toastTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(msg, kind) {
+    var el = $('toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + (kind || '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.className = 'toast ' + (kind || ''); }, 4200);
+  }
+  function api(path, opts) {
+    opts = opts || {};
+    return fetch(path, {
+      method: opts.method || 'GET',
+      headers: opts.body ? { 'content-type': 'application/json' } : undefined,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      cache: 'no-store',
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var json = null;
+        try { json = JSON.parse(text); } catch (e) { /* not json */ }
+        if (!res.ok || !json || json.ok === false) {
+          var msg = (json && (json.error || json.message)) || text.slice(0, 200) || ('HTTP ' + res.status);
+          throw new Error(msg);
+        }
+        return json;
+      });
+    });
+  }
+  function setBusy(on) {
+    busy = on;
+    ['btnApplyRestart', 'btnApply', 'btnProbeAll', 'btnRestart', 'btnAddKey', 'btnAddRef'].forEach(function (id) {
+      $(id).disabled = on;
+    });
+  }
+
+  // ---- rendering -----------------------------------------------------------
+  function pill(id, label, ok, title) {
+    var el = $(id);
+    el.className = 'pill ' + (ok ? 'ok' : 'bad');
+    el.title = title || '';
+    el.innerHTML = '<span class="dot"></span>' + esc(label);
+  }
+  function renderHealth(h) {
+    if (!h) return;
+    pill('pillDaemon', 'daemon ' + (h.daemon.ok ? '正常' : '离线'), h.daemon.ok, h.daemon.ok ? '' : (h.daemon.status ? 'HTTP ' + h.daemon.status : ''));
+    pill('pillBridge', 'bridge ' + (h.bridge.ok ? '正常' : '离线'), h.bridge.ok, h.bridge.ok ? '' : (h.bridge.status ? 'HTTP ' + h.bridge.status : ''));
+  }
+  function renderKeys(s) {
+    var tbody = $('keyRows');
+    var keys = s.keys || [];
+    $('poolCount').textContent = '（' + (s.enabledCount || 0) + ' / ' + keys.length + ' 启用）';
+    if (!keys.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">池为空，请从凭据库添加或粘贴一个 key。</td></tr>';
+      return;
+    }
+    tbody.innerHTML = keys.map(function (k) {
+      var probe = '';
+      if (k.probe) {
+        var ok = k.probe.status === 'ok';
+        probe = '<span class="pill ' + (ok ? 'ok' : 'bad') + '" title="' + esc(k.probe.message || '') + '">' +
+          (ok ? '通过' : '失败 ' + (k.probe.code || '')) + '</span>';
+      } else {
+        probe = '<span class="muted">—</span>';
+      }
+      var flow = '<span class="mono">' + k.okCount + '</span> 成功 / <span class="mono">' +
+        (k.failCount ? '<span style="color:var(--bad)">' + k.failCount + '</span>' : 0) + '</span> 失败';
+      if (k.lastCode && k.lastCode >= 400) flow += ' <span class="tag">' + esc(k.lastCode) + '</span>';
+      return '' +
+        '<tr data-id="' + esc(k.id) + '">' +
+        '<td><input type="checkbox" class="cbEnable" ' + (k.enabled ? 'checked' : '') + ' title="启用" /></td>' +
+        '<td><input type="radio" name="primary" class="cbPrimary" ' + (k.primary ? 'checked' : '') + ' title="设为主 key" /></td>' +
+        '<td><div class="k' + (k.enabled ? '' : ' tag off') + '">' + esc(k.label) + '</div>' +
+        '<div class="hint">' + (k.ref ? esc(k.ref) : '手动添加') + (k.note ? ' · ' + esc(k.note) : '') + '</div></td>' +
+        '<td><div class="mono">' + esc(k.masked) + '</div><div class="mono muted">' + esc(k.fingerprint) + '</div></td>' +
+        '<td>' + flow + '</td>' +
+        '<td>' + probe + '</td>' +
+        '<td style="text-align:right;white-space:nowrap">' +
+          '<button class="mini btnProbe" title="单独探测">探测</button> ' +
+          '<button class="mini danger btnRemove" title="移出池">移除</button>' +
+        '</td>' +
+        '</tr>';
+    }).join('');
+  }
+  function renderRefs(s) {
+    var sel = $('refPick');
+    var refs = s.availableRefs || [];
+    if (!refs.length) {
+      sel.innerHTML = '<option value="">（没有可用的凭据 ref）</option>';
+      return;
+    }
+    sel.innerHTML = refs.map(function (r) {
+      return '<option value="' + esc(r.ref) + '">' + esc(r.ref) + ' · ' + esc(r.masked) + '</option>';
+    }).join('');
+  }
+  function renderRestart(s) {
+    var info = $('restartInfo');
+    var st = s.lastRestart;
+    if (!st) { info.textContent = ''; return; }
+    var when = st.finishedAt || st.at || '';
+    if (st.status === 'running') {
+      info.innerHTML = '正在重启 daemon…（' + esc(when) + '）';
+    } else {
+      var ok = st.status === 'ok';
+      info.innerHTML = (ok ? '✔ 上次重启成功' : '✘ 上次重启失败') + ' · ' + esc(when) +
+        (st.output ? ' · <span class="mono">' + esc(String(st.output).split('\n').slice(-1)[0] || '') + '</span>' : '');
+    }
+  }
+  function render(s) {
+    var keepDirty = dirty && state && document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName);
+    state = s;
+    $('baseUrl').textContent = s.baseUrl || '';
+    $('model').textContent = s.model || '';
+    $('envName').textContent = (s.envPath || '').split(/[\\/]/).pop() || 'env';
+    $('lastApply').textContent = s.lastApply && s.lastApply.at ? ('上次保存 ' + new Date(s.lastApply.at).toLocaleTimeString()) : '';
+    $('pillMode').textContent = '模式：' + (s.strategy && s.strategy.mode ? s.strategy.mode : '—');
+    renderKeys(s);
+    renderRefs(s);
+    renderRestart(s);
+    $('envPreview').textContent = s.envPreview || '';
+    if (!keepDirty) {
+      if (s.strategy) {
+        $('mode').value = s.strategy.mode || 'round-robin';
+        $('cooldown').value = s.strategy.cooldownSeconds;
+        $('weights').value = (s.strategy.weights && s.strategy.weights.length) ? s.strategy.weights.join(',') : '';
+      }
+    }
+    $('statusLine').textContent = '';
+  }
+
+  // ---- data collection from the DOM --------------------------------------
+  function collect() {
+    var keys = [];
+    var rows = $('keyRows').querySelectorAll('tr[data-id]');
+    var primaryId = null;
+    rows.forEach(function (tr) {
+      var id = tr.getAttribute('data-id');
+      var k = state.keys.find(function (x) { return x.id === id; });
+      if (!k) return;
+      var enabled = tr.querySelector('.cbEnable').checked;
+      if (tr.querySelector('.cbPrimary').checked) primaryId = id;
+      keys.push({
+        id: k.id,
+        label: k.label,
+        ref: k.ref || null,
+        enabled: enabled,
+        note: k.note || '',
+        // secret never leaves the host: send back only for keys the panel created
+        apiKey: k._plain || undefined,
+      });
+    });
+    // keys that the panel does not hold in plaintext are resolved host-side via ref/id
+    var weights = $('weights').value.split(',').map(function (s) { return Number(s.trim()); }).filter(function (n) { return n > 0; });
+    return {
+      keys: keys,
+      primary: primaryId,
+      strategy: {
+        mode: $('mode').value,
+        cooldownSeconds: Number($('cooldown').value),
+        weights: weights,
+      },
+    };
+  }
+
+  // ---- actions ------------------------------------------------------------
+  function refresh(silent) {
+    return api('/api/hindsight-keys/state').then(function (s) {
+      render(s);
+  const baseUrlEl = document.getElementById('baseUrl');
+  if (baseUrlEl && s.baseUrl) baseUrlEl.textContent = s.baseUrl;
+  const modelEl = document.getElementById('model');
+  if (modelEl && s.model) modelEl.textContent = s.model;
+      renderHealth(s.health);
+      return s;
+    }).catch(function (err) {
+      if (!silent) toast('读取失败：' + err.message, 'bad');
+      throw err;
+    });
+  }
+  function save(restart) {
+    if (busy) return;
+    var payload;
+    try { payload = collect(); } catch (err) { toast(err.message, 'bad'); return; }
+    payload.restart = !!restart;
+    setBusy(true);
+    api('/api/hindsight-keys/apply', { method: 'POST', body: payload }).then(function (r) {
+      dirty = false;
+      render(r.state);
+      toast(r.changed ? (restart ? '已写入 env，正在重启 daemon' : '已写入 env') : (restart ? 'env 无变化，正在重启 daemon' : '无变化（env 已是该内容）'), 'ok');
+      if (restart) pollRestart();
+      else refresh(true);
+    }).catch(function (err) {
+      toast('保存失败：' + err.message, 'bad');
+    }).then(function () { setBusy(false); });
+  }
+  function pollRestart() {
+    var startedAt = Date.now();
+    var tries = 0;
+    // A cold start on this machine is ~2.5 minutes (uvx + model load), so the
+    // old 2 minute window expired before the daemon was up and the panel never
+    // reported the result.
+    var MAX_TRIES = 300;
+    var timer = setInterval(function () {
+      tries += 1;
+      var secs = Math.round((Date.now() - startedAt) / 1000);
+      api('/api/hindsight-keys/state').then(function (s) {
+        render(s);
+        renderHealth(s.health);
+        if (s.restarting) {
+          $('statusLine').textContent = '正在重启 daemon… ' + secs + 's';
+          return;
+        }
+        clearInterval(timer);
+        setBusy(false);
+        $('statusLine').textContent = '';
+        if (s.lastRestart && s.lastRestart.status === 'ok') {
+          toast('daemon 已重启并就绪（' + secs + 's）', 'ok');
+        } else if (s.lastRestart && s.lastRestart.status === 'failed') {
+          toast('daemon 重启失败，见下方输出', 'bad');
+        } else {
+          toast('重启状态未知，请点“刷新”查看', 'bad');
+        }
+      }).catch(function () {
+        // The daemon is down while it boots. The web server keeps answering, so
+        // a single failed poll is not a reason to give up.
+        $('statusLine').textContent = '正在重启 daemon… ' + secs + 's';
+      });
+      if (tries >= MAX_TRIES) {
+        clearInterval(timer);
+        setBusy(false);
+        toast('重启超时（' + Math.round(MAX_TRIES * 2 / 60) + ' 分钟），请点“刷新”查看', 'bad');
+      }
+    }, 2000);
+  }
+
+  function restart() {
+    if (busy) return;
+    setBusy(true);
+    api('/api/hindsight-keys/restart', { method: 'POST', body: {} }).then(function () {
+      toast('正在重启 daemon', 'ok');
+      pollRestart();
+    }).catch(function (err) {
+      toast('重启失败：' + err.message, 'bad');
+      setBusy(false);
+    });
+  }
+  function probeAll(ids) {
+    if (busy) return;
+    setBusy(true);
+    toast('探测中…', '');
+    api('/api/hindsight-keys/probe', { method: 'POST', body: { ids: ids || null } }).then(function (r) {
+      render(r.state);
+      var ok = r.results.filter(function (x) { return x.status === 'ok'; }).length;
+      toast('探测完成：' + ok + ' / ' + r.results.length + ' 可用', ok === r.results.length ? 'ok' : 'bad');
+    }).catch(function (err) {
+      toast('探测失败：' + err.message, 'bad');
+    }).then(function () { setBusy(false); });
+  }
+
+  // ---- events -------------------------------------------------------------
+  $('btnRefresh').addEventListener('click', function () { refresh(false).catch(function () {}); });
+  $('btnApply').addEventListener('click', function () { save(false); });
+  $('btnApplyRestart').addEventListener('click', function () { save(true); });
+  $('btnRestart').addEventListener('click', restart);
+  $('btnProbeAll').addEventListener('click', function () { probeAll(null); });
+
+  $('keyRows').addEventListener('change', function (ev) {
+    var t = ev.target;
+    dirty = true;
+    if (t.classList.contains('cbEnable')) {
+      var tr = t.closest('tr');
+      var radio = tr.querySelector('.cbPrimary');
+      if (!t.checked && radio.checked) {
+        // keep at least one enabled key / primary
+        t.checked = true;
+        toast('至少要启用一个 key', 'bad');
+      }
+    }
+  });
+  $('keyRows').addEventListener('click', function (ev) {
+    var t = ev.target;
+    var tr = t.closest('tr[data-id]');
+    if (!tr) return;
+    var id = tr.getAttribute('data-id');
+    if (t.classList.contains('btnProbe')) {
+      probeAll([id]);
+    } else if (t.classList.contains('btnRemove')) {
+      var k = state.keys.find(function (x) { return x.id === id; });
+      if (!k) return;
+      if (!confirm('移出 key「' + k.label + '」？（保存后生效）')) return;
+      tr.parentNode.removeChild(tr);
+      dirty = true;
+      $('poolCount').textContent = '（未保存的改动）';
+    }
+  });
+
+  $('btnAddKey').addEventListener('click', function () {
+    var key = $('newKey').value.trim();
+    var label = $('newLabel').value.trim();
+    if (!key) { toast('请粘贴 api key', 'bad'); return; }
+    api('/api/hindsight-keys/apply', {
+      method: 'POST',
+      body: { addKey: { apiKey: key, label: label || undefined } },
+    }).then(function (r) {
+      $('newKey').value = '';
+      $('newLabel').value = '';
+      render(r.state);
+      toast('已加入池：' + (label || '新账号') + '（记得重启 daemon）', 'ok');
+    }).catch(function (err) {
+      toast('添加失败：' + err.message, 'bad');
+    });
+  });
+
+  $('btnAddRef').addEventListener('click', function () {
+    var ref = $('refPick').value;
+    if (!ref) return;
+    api('/api/hindsight-keys/apply', { method: 'POST', body: { addRef: ref } }).then(function (r) {
+      render(r.state);
+      toast('已从凭据库加入 ' + ref, 'ok');
+    }).catch(function (err) {
+      toast('添加失败：' + err.message, 'bad');
+    });
+  });
+
+  ['mode', 'cooldown', 'weights'].forEach(function (id) {
+    $(id).addEventListener('input', function () { dirty = true; });
+    $(id).addEventListener('change', function () { dirty = true; });
+  });
+
+  // lightweight health-only refresh
+  setInterval(function () {
+    if (document.hidden || busy) return;
+    fetch('/api/hindsight-keys/state', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (s) { if (s && s.ok) { renderHealth(s.health); } })
+      .catch(function () {});
+  }, 15000);
+
+  refresh(true).catch(function () {});
+})();
+</script>
+</body>
+</html>

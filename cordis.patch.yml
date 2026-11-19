@@ -1,0 +1,8 @@
+# Bundle patch layer for dsh-hindsight-keys.
+# The row loads index.js as the host half: it serves the key-pool routes and
+# regenerates the managed block in the Hindsight profile env file. The
+# `dsh.client` declaration in package.json makes the web app load ./client.js
+# as the browser half: a settings card that embeds the control panel.
+- insert:
+    - id: dsh-hindsight-keys
+      name: dsh-hindsight-keys

@@ -1,0 +1,53 @@
+{
+  "name": "dsh-hindsight-keys",
+  "version": "0.3.1",
+  "description": "Hindsight multi-key pool control: add/remove/enable API keys and switch the Hindsight daemon rotation strategy (round-robin / failover) from the DSH settings page.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "panel.html",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "install.ps1",
+    "uninstall.ps1"
+  ],
+  "scripts": {
+    "test": "node test/host-logic.test.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "hindsight",
+    "api-key",
+    "load-balancing",
+    "failover"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lahm919/dsh-hindsight-keys.git"
+  },
+  "homepage": "https://github.com/Lahm919/dsh-hindsight-keys#readme",
+  "bugs": {
+    "url": "https://github.com/Lahm919/dsh-hindsight-keys/issues"
+  },
+  "license": "Apache-2.0",
+  "dsh": {
+    "id": "dsh-hindsight-keys",
+    "name": "Hindsight Key Pool",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
